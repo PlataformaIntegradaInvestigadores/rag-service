@@ -23,30 +23,38 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8181:8181"
+    env_file:
+      - .env
     environment:
       # Rutas artefactos
-      PKL_MIN_PATH: /app/resources/embeddings_meta_min.pkl
-      FAISS_PATH: /app/resources/faiss_index_ip.bin
-      SCOPUS_CSV: /app/resources/scopusdata.csv
-      SCOPUS_SEP: "|"
-      LID_MODEL_PATH: /app/resources/lid.176.ftz
+      PKL_MIN_PATH: ${PKL_MIN_PATH:-/app/resources/embeddings_meta_min.pkl}
+      FAISS_PATH: ${FAISS_PATH:-/app/resources/faiss_index_ip.bin}
+      SCOPUS_CSV: ${SCOPUS_CSV:-/app/resources/scopusdata.csv}
+      SCOPUS_SEP: ${SCOPUS_SEP:-|}
+      LID_MODEL_PATH: ${LID_MODEL_PATH:-/app/resources/lid.176.ftz}
+
+      # Re-ranking (cross-encoder)
+      CROSS_ENCODER_MODEL: ${CROSS_ENCODER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
+      CE_BATCH_SIZE: ${CE_BATCH_SIZE:-64}
+      W_CE: ${W_CE:-0.7}
+      W_DENSE: ${W_DENSE:-0.3}
 
       # Ollama dentro de Compose (service DNS, sin cambio)
-      OLLAMA_HOST: "http://ollama:11434"
-      OLLAMA_MODEL: "gemma3:4b"
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma3:4b}
 
       # Puerto FastAPI (debe coincidir con el CMD/uvicorn o __main__)
-      PORT: "8181"
+      PORT: ${PORT:-8181}
 
       # RAG params
-      RAG_TEMPERATURE: "0.2"
-      RAG_MAX_NEW_TOKENS: "768"
-      RAG_TOP_CONTEXT: "6"
-      RAG_MAX_INPUT_CHARS: "7000"
-      RAG_MAX_CHUNK_CHARS: "900"
-      RAG_TRIM_ABSTRACT: "1"
-      API_TOPK: "100"
-      RAG_HTTP_TIMEOUT_SECS: "300"
+      RAG_TEMPERATURE: ${RAG_TEMPERATURE:-0.2}
+      RAG_MAX_NEW_TOKENS: ${RAG_MAX_NEW_TOKENS:-768}
+      RAG_TOP_CONTEXT: ${RAG_TOP_CONTEXT:-6}
+      RAG_MAX_INPUT_CHARS: ${RAG_MAX_INPUT_CHARS:-7000}
+      RAG_MAX_CHUNK_CHARS: ${RAG_MAX_CHUNK_CHARS:-900}
+      RAG_TRIM_ABSTRACT: ${RAG_TRIM_ABSTRACT:-1}
+      API_TOPK: ${API_TOPK:-100}
+      RAG_HTTP_TIMEOUT_SECS: ${RAG_HTTP_TIMEOUT_SECS:-300}
     restart: unless-stopped
     networks:
       - default

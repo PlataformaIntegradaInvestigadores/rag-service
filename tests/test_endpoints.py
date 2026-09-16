@@ -27,7 +27,9 @@ class TestHealth:
         ):
             response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        body = response.json()
+        assert body["global_status"] == "Online"
+        assert all(s["status"] == "ok" for s in body["groups"][0]["services"])
 
     def test_artefacto_faltante_devuelve_503(self):
         with patch(
@@ -36,7 +38,12 @@ class TestHealth:
         ):
             response = client.get("/health")
         assert response.status_code == 503
-        assert response.json() == {"status": "error"}
+        body = response.json()
+        assert body["global_status"] == "Offline"
+        pkl_service = next(
+            s for s in body["groups"][0]["services"] if s["name"] == "pkl-model"
+        )
+        assert pkl_service["status"] == "error"
 
 
 class TestOpenAPI:

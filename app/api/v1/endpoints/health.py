@@ -30,10 +30,10 @@ def _check(name, fn):
 @router.get("/health", include_in_schema=False)
 def health():
     services = [
-        _check("pkl-model", load_pkl_and_model),
-        _check("faiss-index", load_faiss),
-        _check("scopus-csv", load_scopus_csv),
-        _check("language-id-model", _get_lid_model),
+        _check("modelo-embeddings", load_pkl_and_model),
+        _check("indice-faiss", load_faiss),
+        _check("catalogo-scopus", load_scopus_csv),
+        _check("modelo-idioma", _get_lid_model),
     ]
     ok = all(s["status"] == "ok" for s in services)
 
@@ -43,7 +43,7 @@ def health():
         "global_status": "Online" if ok else "Offline",
         "groups": [
             {
-                "group_name": "RAG Engine",
+                "group_name": "RAG / Búsqueda Semántica con IA",
                 "group_status": "Operativo" if ok else "Caído",
                 "services": services,
             }

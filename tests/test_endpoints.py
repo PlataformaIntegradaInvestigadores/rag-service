@@ -41,7 +41,9 @@ class TestHealth:
         body = response.json()
         assert body["global_status"] == "Offline"
         pkl_service = next(
-            s for s in body["groups"][0]["services"] if s["name"] == "pkl-model"
+            s
+            for s in body["groups"][0]["services"]
+            if s["name"] == "modelo-embeddings"
         )
         assert pkl_service["status"] == "error"
 

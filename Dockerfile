@@ -1,5 +1,5 @@
-# Imagen base
-FROM python:3.11-slim
+# --- Etapa builder: toolchain de compilación (fasttext necesita swig/cmake/gcc) ---
+FROM python:3.11-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -12,6 +12,24 @@ RUN apt-get update && \
         cmake \
         swig \
         git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --prefix=/install -r /app/requirements.txt
+
+# --- Etapa final: solo runtime, sin compiladores ---
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
         libgomp1 \
@@ -19,24 +37,18 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# 1) Dependencias Python
-COPY requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && \
-    pip install -r /app/requirements.txt
+COPY --from=builder /install /usr/local
 
 # 2) Código y artefactos (RAG)
-COPY server.py /app/server.py
-COPY embeddings_meta_min.pkl /app/embeddings_meta_min.pkl
-COPY faiss_index_ip.bin /app/faiss_index_ip.bin
-COPY scopusdata.csv /app/scopusdata.csv
-COPY lid.176.ftz /app/lid.176.ftz
+COPY app/ /app/app/
+COPY resources/ /app/resources/
 
 # 3) Variables de entorno (ajusta si aplica)
-ENV PKL_MIN_PATH=/app/embeddings_meta_min.pkl \
-    FAISS_PATH=/app/faiss_index_ip.bin \
-    SCOPUS_CSV=/app/scopusdata.csv \
+ENV PKL_MIN_PATH=/app/resources/embeddings_meta_min.pkl \
+    FAISS_PATH=/app/resources/faiss_index_ip.bin \
+    SCOPUS_CSV=/app/resources/scopusdata.csv \
     SCOPUS_SEP="|" \
-    LID_MODEL_PATH=/app/lid.176.ftz \
+    LID_MODEL_PATH=/app/resources/lid.176.ftz \
     RAG_TEMPERATURE=0.2 \
     RAG_MAX_NEW_TOKENS=768 \
     RAG_TOP_CONTEXT=6 \
@@ -54,4 +66,4 @@ ENV PKL_MIN_PATH=/app/embeddings_meta_min.pkl \
 EXPOSE 8181
 
 # Uvicorn como server (más estándar que __main__ en contenedores)
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8181"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8181"]

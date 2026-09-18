@@ -2,5 +2,17 @@
 .env
 .env.*
 
+# Python bytecode (can bake in secrets present at compile time)
+__pycache__/
+*.pyc
+
 # Agent configuration (local only, not committed)
 AGENTS.md
+
+# Artefactos de tests locales
+.coverage
+coverage-*.xml
+report*.xml
+htmlcov/
+.venv-test/
+.venv-test-requirements.txt

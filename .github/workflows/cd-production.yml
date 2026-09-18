@@ -1,0 +1,73 @@
+name: "CD — RAG → Producción"
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # ── Tests ──────────────────────────────────────────────────────────────────
+  test:
+    name: Pruebas unitarias (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -q -r requirements.txt pytest pytest-cov httpx ruff black
+      - name: ruff check
+        run: ruff check .
+      - name: black --check
+        run: black --check .
+      - name: Ejecutar tests
+        run: |
+          pytest tests/ -v --tb=short \
+            --junitxml=report-prod.xml \
+            --cov=. --cov-report=term --cov-report=xml:coverage-prod.xml --cov-fail-under=0
+      - name: Subir resultados
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results-prod
+          path: |
+            report-prod.xml
+            coverage-prod.xml
+
+  # ── Deploy producción ────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy a servidor producción
+    runs-on: [self-hosted, production]
+    needs: test
+    steps:
+      - name: Actualizar código
+        run: |
+          cd /opt/centinela/rag-service
+          git fetch origin main
+          git reset --hard origin/main
+
+      - name: Reconstruir contenedor
+        run: |
+          cd /opt/centinela/rag-service
+          docker compose up -d --build --remove-orphans rag-service
+
+      - name: Health check con rollback automático
+        run: |
+          sleep 15
+          HEALTHY=false
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8181/health || echo "000")
+            echo "Intento $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              HEALTHY=true; break
+            fi
+            sleep 6
+          done
+          if [ "$HEALTHY" = "false" ]; then
+            echo "Health check fallido — rollback al commit anterior"
+            cd /opt/centinela/rag-service && git reset --hard HEAD~1
+            docker compose up -d --build --remove-orphans rag-service
+            exit 1
+          fi
+          echo "Deploy exitoso — RAG en producción"

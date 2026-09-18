@@ -6,8 +6,8 @@ numpy==1.26.4
 pandas==2.2.2
 requests
 
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1+cpu
 faiss-cpu==1.8.0
 sentence-transformers==3.0.1
 fasttext==0.9.3
-gradio
-openai

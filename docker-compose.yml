@@ -14,6 +14,49 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    # default: rag-service resolves it as `ollama`.
+    # centinela-net: search-service reuses the same daemon (qwen2.5:1.5b)
+    # without going through POST /ask.
+    networks:
+      - default
+      - centinela-net
+
+  # One-shot: pull models into the shared ollama volume on first/boot.
+  # Idempotent — ollama pull skips download if the tag is already present.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      # Space-separated list; override via .env if needed
+      OLLAMA_PULL_MODELS: ${OLLAMA_PULL_MODELS:-gemma3:4b qwen2.5:1.5b}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        echo "[ollama-init] waiting for daemon at $$OLLAMA_HOST"
+        i=0
+        until ollama list >/dev/null 2>&1; do
+          i=$$((i + 1))
+          if [ "$$i" -gt 60 ]; then
+            echo "[ollama-init] timeout waiting for ollama" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+        for model in $$OLLAMA_PULL_MODELS; do
+          echo "[ollama-init] pulling $$model ..."
+          ollama pull "$$model"
+        done
+        echo "[ollama-init] models ready:"
+        ollama list
+    restart: "no"
+    networks:
+      - default
+      - centinela-net
 
   rag-service:
     build: .
@@ -21,6 +64,8 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8181:8181"
     env_file:

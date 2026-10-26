@@ -10,7 +10,7 @@ Parte del org multi-repo `PlataformaIntegradaInvestigadores`. Se expone a travé
 - FAISS (`faiss-cpu`) — índice vectorial de similitud (`resources/faiss_index_ip.bin`)
 - Sentence-Transformers — embeddings + cross-encoder para reranking (`cross-encoder/ms-marco-MiniLM-L-6-v2`)
 - fastText — detección de idioma de la consulta (`resources/lid.176.ftz`)
-- Ollama (HTTP, servicio aparte) — generación con `gemma3:4b`
+- Ollama (HTTP, servicio aparte) — generación con `gemma3:4b`. El mismo daemon se reutiliza desde `search-service` para `qwen2.5:1.5b` (Q&A del buscador), sin pasar por `/ask`.
 - pandas / numpy — manejo del corpus (`resources/scopusdata.csv`, `resources/embeddings_meta_min.pkl`)
 
 ## Estructura del proyecto
@@ -41,17 +41,18 @@ tests/                           # pytest, mocks de los loaders pesados (FAISS/f
 ## Requisitos previos
 
 - Docker + Docker Compose
-- Un contenedor Ollama corriendo el modelo `gemma3:4b` (ver más abajo)
+- Red externa `centinela-net` (`docker network create centinela-net`)
 
 ## Levantar en local
 
 ### Con Docker (recomendado)
 
 ```bash
+docker network create centinela-net   # si aún no existe
 docker compose up -d
-docker exec -it ollama bash
-ollama pull gemma3:4b
 ```
+
+`ollama-init` descarga automáticamente `gemma3:4b` (RAG `/ask`) y `qwen2.5:1.5b` (HyDE/QA de search-service) la primera vez; en reinicios posteriores el pull es casi instantáneo si ya están en el volumen. Podés overridear la lista con `OLLAMA_PULL_MODELS` en un `.env`.
 
 El servicio queda disponible en `http://127.0.0.1:8181`.
 

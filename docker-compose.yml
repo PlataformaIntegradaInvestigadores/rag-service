@@ -2,13 +2,15 @@ name: rag
 
 services:
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.32.15
     container_name: ollama
     ports:
       - "127.0.0.1:11434:11434"
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
@@ -24,7 +26,7 @@ services:
   # One-shot: pull models into the shared ollama volume on first/boot.
   # Idempotent — ollama pull skips download if the tag is already present.
   ollama-init:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.32.15
     container_name: ollama-init
     depends_on:
       ollama:
@@ -101,6 +103,13 @@ services:
       API_TOPK: ${API_TOPK:-100}
       RAG_HTTP_TIMEOUT_SECS: ${RAG_HTTP_TIMEOUT_SECS:-300}
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
     networks:
       - default
       - centinela-net

@@ -56,7 +56,9 @@ jobs:
         run: |
           sleep 15
           HEALTHY=false
-          for i in 1 2 3 4 5; do
+          # The first /health loads the embedding model, the FAISS index and the
+          # catalogue, so give it up to ~5 minutes instead of ~1.
+          for i in $(seq 1 40); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8181/health || echo "000")
             echo "Intento $i: HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then

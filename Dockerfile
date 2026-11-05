@@ -35,13 +35,29 @@ RUN apt-get update && \
         libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --gid 1000 appuser \
+    && useradd --uid 1000 --gid appuser --create-home --shell /usr/sbin/nologin appuser
+
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
 
+# Run as appuser from here on, so the model cache below belongs to it.
+USER appuser
+ENV HF_HOME=/home/appuser/.cache/huggingface
+
+# Bake the Hugging Face models into the image. They used to be downloaded (559 MB)
+# the first time they were needed after every container creation, which made
+# startup depend on internet access and on the HF servers. The embedding model is
+# the one named in resources/embeddings_meta_min.pkl; if that artifact is
+# regenerated with another model, change it here too.
+RUN python -c "from sentence_transformers import CrossEncoder, SentenceTransformer; \
+SentenceTransformer('intfloat/multilingual-e5-small', device='cpu'); \
+CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', device='cpu')"
+
 # 2) Código y artefactos (RAG)
-COPY app/ /app/app/
-COPY resources/ /app/resources/
+COPY --chown=appuser:appuser app/ /app/app/
+COPY --chown=appuser:appuser resources/ /app/resources/
 
 # 3) Variables de entorno (ajusta si aplica)
 ENV PKL_MIN_PATH=/app/resources/embeddings_meta_min.pkl \
@@ -58,12 +74,19 @@ ENV PKL_MIN_PATH=/app/resources/embeddings_meta_min.pkl \
     API_TOPK=100 \
     RAG_HTTP_TIMEOUT_SECS=300 \
     CROSS_ENCODER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2 \
-    OLLAMA_HOST=http://host.docker.internal:11434 \
+    OLLAMA_HOST=http://ollama:11434 \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
     OLLAMA_MODEL=gemma3:4b \
     PORT=8181
 
 # Puerto FastAPI
 EXPOSE 8181
+
+# /health loads the embedding model, the FAISS index and the catalogue on its
+# first call, hence the long start period.
+HEALTHCHECK --interval=30s --timeout=15s --start-period=180s --retries=5 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8181/health', timeout=10)"
 
 # Uvicorn como server (más estándar que __main__ en contenedores)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8181"]
